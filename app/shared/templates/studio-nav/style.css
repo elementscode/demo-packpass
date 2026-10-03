@@ -1,0 +1,9 @@
+.studio-nav .tab-list {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.studio-nav .tab {
+  flex: none;
+  text-decoration: none;
+}

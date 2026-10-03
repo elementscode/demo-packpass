@@ -1,0 +1,37 @@
+import "./style.css";
+
+/**
+ * Sent when a spot opens and the member moves off the waitlist.
+ *
+ * @email
+ */
+<html (
+  name: string,
+  className: string,
+  when: string,
+  instructorName: string,
+  room: string,
+  paidWith: string,
+)>
+  <body class="email waitlist-booked">
+    <div class="email-wrap">
+      <p class="brand">PackPass Studio</p>
+      <h1>You're in: {className}</h1>
+      <p>Hi {name}, a spot opened up and you were first on the waitlist, so we booked it for you.</p>
+
+      <table class="details" role="presentation">
+        <tr><th>When</th><td>{when}</td></tr>
+        <tr><th>Instructor</th><td>{instructorName}</td></tr>
+        <tr><th>Room</th><td>{room}</td></tr>
+        <tr><th>Paid with</th><td>{paidWith}</td></tr>
+      </table>
+
+      <p>Can't make it? Cancel from your account. Cancelling 12 or more hours before class returns your credit.</p>
+      <p><a href="/account">Manage your bookings</a></p>
+
+      <div class="email-footer">
+        <p>PackPass Studio</p>
+      </div>
+    </div>
+  </body>
+</html>

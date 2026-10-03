@@ -1,0 +1,142 @@
+import "./style.css";
+import { LiveView } from "@elements/app";
+import favicon from "#app/shared/assets/favicons/favicon.svg";
+import { Layout } from "#app/shared/templates/layout";
+import { StudioNav } from "#app/shared/templates/studio-nav";
+import { Member } from "#app/shared/services/live";
+import { adjustCredits, setCompMembership } from "#app/shared/services/studio";
+import { formatDay } from "#app/shared/studio";
+
+interface MembersUI {
+  query: string;
+  busy: string;
+  error: string;
+}
+
+export function isUnlimited(m: Member): boolean {
+  return m.membershipStatus === "active" || m.membershipStatus === "trialing" || m.membershipStatus === "past_due";
+}
+
+export function visibleMembers(members: LiveView<Member>, query: string): Member[] {
+  let q = query.trim().toLowerCase();
+
+  return members
+    .filter((m) => m.role === "member" && (!q || m.name.toLowerCase().includes(q) || m.email.includes(q)))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function membershipLabel(m: Member): string {
+  if (!isUnlimited(m)) {
+    return m.membershipStatus === "canceled" ? "Unlimited ended" : "Class packs";
+  }
+
+  let end = m.membershipEnds ? formatDay(m.membershipEnds) : "";
+
+  return m.cancelAtPeriodEnd ? `Unlimited, ends ${end}` : `Unlimited, renews ${end}`;
+}
+
+function onAdjustClick(ui: MembersUI, m: Member, delta: number) {
+  ui.busy = m.id;
+  ui.error = "";
+
+  try {
+    adjustCredits(m.id, delta);
+  } catch (err: any) {
+    ui.error = err.message;
+  }
+
+  ui.busy = "";
+}
+
+function onCompClick(ui: MembersUI, m: Member, on: boolean) {
+  ui.busy = m.id;
+  ui.error = "";
+
+  try {
+    setCompMembership(m.id, on);
+  } catch (err: any) {
+    ui.error = err.message;
+  }
+
+  ui.busy = "";
+}
+
+<html lang="en" class="page-studio-members" (
+  members: LiveView<Member>,
+  private ui: MembersUI = { query: "", busy: "", error: "" },
+)>
+  <head>
+    <title>Members · PackPass</title>
+    <meta name="description" content="PackPass members, credits and memberships.">
+    <link rel="icon" type="image/svg+xml" href={favicon} />
+  </head>
+  <body>
+    <Layout active="studio">
+      <div class="page-shell is-wide stack is-lg">
+        <div class="members-head stack is-xs">
+          <p class="eyebrow">Studio</p>
+          <h1>Members</h1>
+          <p>Credits and memberships change here the moment a member books, cancels or pays.</p>
+        </div>
+
+        <StudioNav active="members" />
+
+        <div class="members-summary">
+          <div class="card"><div class="card-body"><span class="stat-value">{visibleMembers(members, "").length}</span><span class="stat-label">members</span></div></div>
+          <div class="card"><div class="card-body"><span class="stat-value">{visibleMembers(members, "").filter(isUnlimited).length}</span><span class="stat-label">unlimited memberships</span></div></div>
+          <div class="card"><div class="card-body"><span class="stat-value">{visibleMembers(members, "").reduce((n, m) => n + m.credits, 0)}</span><span class="stat-label">unused pack credits</span></div></div>
+          <div class="card"><div class="card-body"><span class="stat-value">{visibleMembers(members, "").reduce((n, m) => n + m.upcoming, 0)}</span><span class="stat-label">upcoming bookings</span></div></div>
+        </div>
+
+        <div e:if={ui.error} class="callout is-danger" role="alert">{ui.error}</div>
+
+        <div class="members-toolbar row">
+          <input type="search" aria-label="Search members" placeholder="Search by name or email" value={ui.query}>
+          <span class="stat-label">{visibleMembers(members, ui.query).length} shown</span>
+        </div>
+
+        <div class="card table-wrap">
+          <table class="members-table">
+            <thead>
+              <tr>
+                <th>Member</th>
+                <th>Membership</th>
+                <th>Credits</th>
+                <th class="hide-sm">Upcoming</th>
+                <th class="hide-sm">Attended</th>
+                <th class="hide-sm">Joined</th>
+                <th class="actions"><span class="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr e:for={m of visibleMembers(members, ui.query)}>
+                <td>
+                  <strong>{m.name}</strong>
+                  <span class="sub">{m.email}</span>
+                </td>
+                <td>
+                  <span class={["pill", isUnlimited(m) ? (m.cancelAtPeriodEnd ? "is-warning" : "is-success") : ""]}>{membershipLabel(m)}</span>
+                  <span e:if={isUnlimited(m)} class="sub">{m.stripeManaged ? "Billed by Stripe" : "Granted by the studio"}</span>
+                </td>
+                <td>
+                  <div class="credits row">
+                    <button class="is-ghost is-sm is-icon" aria-label={`Remove a credit from ${m.name}`} disabled={ui.busy === m.id || m.credits === 0} onclick={() => onAdjustClick(ui, m, -1)}>−</button>
+                    <span class="count">{m.credits}</span>
+                    <button class="is-ghost is-sm is-icon" aria-label={`Add a credit for ${m.name}`} disabled={ui.busy === m.id} onclick={() => onAdjustClick(ui, m, 1)}>+</button>
+                  </div>
+                </td>
+                <td class="num hide-sm">{m.upcoming}</td>
+                <td class="num hide-sm">{m.attended}</td>
+                <td class="hide-sm">{formatDay(m.createdAt)}</td>
+                <td class="actions">
+                  <button e:if={!isUnlimited(m)} class="is-sm" disabled={ui.busy === m.id} onclick={() => onCompClick(ui, m, true)}>Grant unlimited</button>
+                  <button e:elseif={!m.stripeManaged} class="is-ghost is-sm" disabled={ui.busy === m.id} onclick={() => onCompClick(ui, m, false)}>End unlimited</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </Layout>
+  </body>
+</html>

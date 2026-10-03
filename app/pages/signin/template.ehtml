@@ -1,0 +1,124 @@
+import "./style.css";
+import { redirect } from "@elements/app";
+import favicon from "#app/shared/assets/favicons/favicon.svg";
+import { Layout } from "#app/shared/templates/layout";
+import { signin } from "#app/shared/services/auth";
+
+export interface DemoLogin {
+  id: string;
+  name: string;
+  email: string;
+  role: "member" | "staff";
+  plan: string;
+}
+
+interface SigninForm {
+  email: string;
+  password: string;
+  error: string;
+  busy: boolean;
+}
+
+export const DEMO_PASSWORD = "packpass";
+
+function onSubmit(form: SigninForm) {
+  form.busy = true;
+
+  try {
+    let role = signin(form.email, form.password);
+    form.error = "";
+    redirect(role === "staff" ? "/studio" : "/");
+  } catch (err: any) {
+    form.error = err.message;
+    form.busy = false;
+  }
+}
+
+function useLogin(form: SigninForm, login: DemoLogin) {
+  form.email = login.email;
+  form.password = DEMO_PASSWORD;
+  onSubmit(form);
+}
+
+<html lang="en" class="page-signin" (
+  demoLogins: DemoLogin[],
+  private form: SigninForm = { email: "", password: "", error: "", busy: false },
+)>
+  <head>
+    <title>Sign in · PackPass</title>
+    <meta name="description" content="Sign in to book yoga and Pilates classes at PackPass Studio.">
+    <link rel="icon" type="image/svg+xml" href={favicon} />
+  </head>
+  <body>
+    <Layout>
+      <div class="page-shell signin-grid">
+        <section class="signin-intro stack is-lg">
+          <div class="stack is-sm">
+            <p class="eyebrow">PackPass Studio</p>
+            <h1 class="signin-title">Yoga and Pilates, booked in a tap.</h1>
+            <p class="lede">See the week's classes, grab a spot with a pack credit or your unlimited plan, and hop on the waitlist when a class fills.</p>
+          </div>
+
+          <form class="card signin-card" onsubmit={() => onSubmit(form)}>
+            <div class="card-head">
+              <h2>Sign in</h2>
+            </div>
+            <div class="card-body stack">
+
+              <p e:if={form.error} class="callout is-danger" role="alert">{form.error}</p>
+
+              <div class="field">
+                <label for="email">Email</label>
+                <input id="email"
+                       name="email"
+                       type="email"
+                       value={form.email}
+                       autocomplete="email"
+                       autocapitalize="none"
+                       spellcheck={false}
+                       placeholder="you@example.com"
+                       required>
+              </div>
+
+              <div class="field">
+                <label for="password">Password</label>
+                <input id="password"
+                       name="password"
+                       type="password"
+                       value={form.password}
+                       autocomplete="current-password"
+                       required>
+              </div>
+
+              <button type="submit" class="is-primary is-block" disabled={form.busy}>Sign in</button>
+
+              <p class="signin-alt">New here? <a class="link-action" href="/signup">Create an account</a></p>
+            </div>
+          </form>
+        </section>
+
+        <aside e:if={demoLogins.length > 0} class="card demo-card" aria-labelledby="demo-title">
+          <div class="card-head">
+            <h2 id="demo-title">Demo logins</h2>
+          </div>
+          <div class="card-body stack is-sm">
+            <p class="demo-note">Every account's password is <code>{DEMO_PASSWORD}</code>. Pick one to sign in as it.</p>
+
+            <ul class="demo-list stack is-xs">
+              <li e:for={login of demoLogins}>
+                <button type="button" class="demo-login is-ghost is-block" onclick={() => useLogin(form, login)}>
+                  <span class="demo-who">
+                    <span class="demo-name">{login.name}</span>
+                    <span class="demo-email">{login.email}</span>
+                  </span>
+                  <span e:if={login.role === "staff"} class="pill is-accent">Staff</span>
+                  <span e:else class="demo-plan">{login.plan}</span>
+                </button>
+              </li>
+            </ul>
+          </div>
+        </aside>
+      </div>
+    </Layout>
+  </body>
+</html>

@@ -1,0 +1,93 @@
+@import "#app/shared/styles/page.css";
+
+.members-head h1 {
+  margin: 0;
+}
+
+.members-head p {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+.members-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.members-summary .card-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.stat-value {
+  font-size: var(--text-3xl);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-none);
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-label {
+  font-size: var(--text-sm);
+  color: var(--ink-soft);
+}
+
+.members-toolbar {
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.members-toolbar input {
+  max-width: 20rem;
+}
+
+.members-table {
+  width: 100%;
+}
+
+.members-table td {
+  vertical-align: middle;
+}
+
+.members-table .sub {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+
+.members-table .num {
+  font-variant-numeric: tabular-nums;
+}
+
+.credits {
+  gap: var(--space-1-5);
+}
+
+.credits .count {
+  min-width: 1.75rem;
+  font-weight: var(--weight-semibold);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.members-table .actions {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.table-wrap {
+  position: relative;
+  overflow-x: auto;
+}
+
+@media (max-width: 48rem) {
+  .members-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .members-table .hide-sm {
+    display: none;
+  }
+}

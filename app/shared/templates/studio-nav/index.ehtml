@@ -1,0 +1,11 @@
+import "./style.css";
+
+<StudioNav (active: string)>
+  <nav class="studio-nav tabs" aria-label="Studio">
+    <div class="tab-list">
+      <a class={["tab", active === "schedule" && "is-active"]} href="/studio">Schedule</a>
+      <a class={["tab", active === "members" && "is-active"]} href="/studio/members">Members</a>
+      <a class={["tab", active === "catalog" && "is-active"]} href="/studio/catalog">Classes and instructors</a>
+    </div>
+  </nav>
+</StudioNav>

@@ -1,0 +1,152 @@
+@import "#app/shared/styles/page.css";
+
+.account-head h1 {
+  margin: 0;
+}
+
+.account-head p {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+.plan-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.stat-value {
+  font-size: var(--text-3xl);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-none);
+  letter-spacing: var(--tracking-tight);
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-label {
+  font-size: var(--text-sm);
+  color: var(--ink-soft);
+}
+
+.offers {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.offer {
+  display: flex;
+  flex-direction: column;
+}
+
+.offer .card-body {
+  flex: 1;
+}
+
+.offer.is-featured {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), var(--shadow-sm);
+}
+
+.offer h3 {
+  margin: 0;
+  font-size: var(--text-md);
+}
+
+.price {
+  font-size: var(--text-3xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+}
+
+.price small {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+  color: var(--ink-soft);
+}
+
+.offer p {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-soft);
+}
+
+.offer .card-foot {
+  justify-content: stretch;
+}
+
+.offer .card-foot button {
+  width: 100%;
+}
+
+.booking-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.booking-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding-block: var(--space-3);
+  border-top: 1px solid var(--rule-soft);
+}
+
+.booking-list li:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.booking-list .what {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.booking-list .when {
+  font-size: var(--text-sm);
+  color: var(--ink-soft);
+}
+
+.booking-list .actions {
+  flex: none;
+  gap: var(--space-2);
+}
+
+.muted {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: var(--text-sm);
+}
+
+@media (max-width: 48rem) {
+  .offers {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .stat-value {
+    font-size: var(--text-xl);
+  }
+
+  .booking-list li {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+.account-shell {
+  max-width: var(--container-4xl);
+}
+
+.price-row {
+  justify-content: space-between;
+  gap: var(--space-2);
+}

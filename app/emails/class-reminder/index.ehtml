@@ -1,0 +1,35 @@
+import "./style.css";
+
+/**
+ * Sent two hours before a booked class.
+ *
+ * @email
+ */
+<html (
+  name: string,
+  className: string,
+  when: string,
+  instructorName: string,
+  room: string,
+)>
+  <body class="email class-reminder">
+    <div class="email-wrap">
+      <p class="brand">PackPass Studio</p>
+      <h1>{className} starts soon</h1>
+      <p>Hi {name}, this is your reminder that you're booked in two hours.</p>
+
+      <table class="details" role="presentation">
+        <tr><th>When</th><td>{when}</td></tr>
+        <tr><th>Instructor</th><td>{instructorName}</td></tr>
+        <tr><th>Room</th><td>{room}</td></tr>
+      </table>
+
+      <p>Arrive ten minutes early to settle in. Mats and props are provided.</p>
+      <p><a href="/account">See your bookings</a></p>
+
+      <div class="email-footer">
+        <p>PackPass Studio. It is too late to cancel this class for a credit back.</p>
+      </div>
+    </div>
+  </body>
+</html>

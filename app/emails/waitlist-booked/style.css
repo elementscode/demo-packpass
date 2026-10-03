@@ -1,0 +1,30 @@
+@import "#app/shared/styles/email.css";
+
+.email.waitlist-booked .brand {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #2f6690;
+}
+
+.email.waitlist-booked .details {
+  width: 100%;
+  margin: 16px 0;
+  border-collapse: collapse;
+}
+
+.email.waitlist-booked .details th,
+.email.waitlist-booked .details td {
+  padding: 8px 0;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+  vertical-align: top;
+}
+
+.email.waitlist-booked .details th {
+  width: 120px;
+  font-weight: 500;
+  color: #6b7280;
+}
