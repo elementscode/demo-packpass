@@ -1,0 +1,35 @@
+import "./style.css";
+import { session } from "@elements/app";
+import { signout } from "#app/shared/services/auth";
+
+<Layout (active: string = "")>
+  <div class="app">
+    <header class="site-header">
+      <div class="site-header-inner row">
+        <a class="brand row" href="/">
+          <svg class="brand-mark" width="28" height="28" viewBox="0 0 28 28" aria-hidden="true">
+            <circle cx="14" cy="14" r="13" fill="currentColor" opacity="0.14"/>
+            <path d="M14 6c2.6 3.2 4 6 4 8.4a4 4 0 0 1-8 0C10 12 11.4 9.2 14 6Z" fill="currentColor"/>
+            <path d="M7 19.5c2.2-1.3 4.5-1.9 7-1.9s4.8.6 7 1.9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+          </svg>
+          PackPass
+        </a>
+
+        <nav e:if={session.isLoggedIn()} class="site-nav cluster is-xs" aria-label="Main">
+          <a href="/" class={[active === "schedule" && "is-active"]}>Schedule</a>
+          <a href="/account" class={[active === "account" && "is-active"]}>Account</a>
+          <a e:if={session.get("role") === "staff"} href="/studio" class={[active === "studio" && "is-active"]}>Studio</a>
+          <button class="is-ghost is-sm" onclick={() => signout()}>Sign out</button>
+        </nav>
+      </div>
+    </header>
+
+    <main class="app-main site-main">
+      <slot/>
+    </main>
+
+    <footer class="site-footer">
+      PackPass Studio · 214 Alder Street · Yoga and Pilates
+    </footer>
+  </div>
+</Layout>

@@ -1,0 +1,85 @@
+import "./style.css";
+import { redirect } from "@elements/app";
+import favicon from "#app/shared/assets/favicons/favicon.svg";
+import { Layout } from "#app/shared/templates/layout";
+import { money } from "#app/shared/studio";
+import { payTestCheckout, TestLine } from "./services";
+
+interface PayUI {
+  busy: boolean;
+  error: string;
+}
+
+function onPay(ui: PayUI, line: TestLine) {
+  ui.busy = true;
+  ui.error = "";
+
+  try {
+    redirect(payTestCheckout(line.product));
+  } catch (err: any) {
+    ui.error = err.message;
+    ui.busy = false;
+  }
+}
+
+<html lang="en" class="page-checkout-test" (
+  line: TestLine,
+  email: string,
+  private ui: PayUI = { busy: false, error: "" },
+)>
+  <head>
+    <title>Checkout · PackPass</title>
+    <meta name="description" content="Pay for your PackPass classes.">
+    <link rel="icon" type="image/svg+xml" href={favicon} />
+  </head>
+  <body>
+    <Layout active="account">
+      <div class="page-shell checkout-shell stack is-lg">
+        <div class="checkout-head row">
+          <div class="stack is-xs">
+            <p class="eyebrow">Checkout</p>
+            <h1>Review and pay</h1>
+          </div>
+          <span class="pill is-warning test-badge">Test mode</span>
+        </div>
+
+        <section class="card checkout-card">
+          <div class="card-body stack">
+            <p class="checkout-email">Paying as <strong>{email}</strong></p>
+
+            <div class="line-item">
+              <div class="line-what">
+                <strong>{line.name}</strong>
+                <span>{line.description}</span>
+              </div>
+              <span class="line-amount">{money(line.amountCents)}{line.recurring ? " / mo" : ""}</span>
+            </div>
+
+            <div class="line-total">
+              <span>{line.recurring ? "Due today, then monthly" : "Total due"}</span>
+              <span class="total-amount">{money(line.amountCents)}</span>
+            </div>
+
+            <p e:if={ui.error} class="callout is-danger" role="alert">{ui.error}</p>
+
+            <button type="button"
+                    class={["is-primary is-block is-lg", ui.busy && "is-loading"]}
+                    disabled={ui.busy}
+                    onclick={() => onPay(ui, line)}>
+              {ui.busy ? "Paying…" : `Pay ${money(line.amountCents)}`}
+            </button>
+
+            <a class="checkout-cancel link-action" href="/account#buy">Cancel and go back</a>
+          </div>
+        </section>
+
+        <p class="test-note">
+          This is the built-in test checkout: no card is asked for and nothing is
+          charged, but the purchase is recorded like a real one. Add
+          <code>STRIPE_SECRET_KEY</code> to <code>config/env/development.env</code>
+          and this button goes to Stripe Checkout instead.
+        </p>
+      </div>
+    </Layout>
+  </body>
+</html>

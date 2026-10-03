@@ -1,0 +1,300 @@
+import "./style.css";
+import { LiveTable, LiveView, SqlError, ValidationError } from "@elements/app";
+import favicon from "#app/shared/assets/favicons/favicon.svg";
+import { Layout } from "#app/shared/templates/layout";
+import { StudioNav } from "#app/shared/templates/studio-nav";
+import { requireStaff } from "#app/shared/services/auth";
+
+export interface Instructor {
+  id: string;
+  name: string;
+  specialty: string;
+  bio: string;
+  createdAt: Date;
+}
+
+export interface ClassType {
+  id: string;
+  name: string;
+  kind: "yoga" | "pilates";
+  description: string;
+  durationMinutes: number;
+  capacity: number;
+  createdAt: Date;
+}
+
+function inUse(what: string): never {
+  throw new ValidationError(`That ${what} is on the schedule, so it can't be deleted. Edit it instead.`);
+}
+
+function checkClassType(t: Partial<ClassType>) {
+  if (!t.name?.trim()) {
+    throw new ValidationError("Give the class a name.");
+  }
+
+  if (!(Number(t.durationMinutes) > 0) || !(Number(t.capacity) > 0)) {
+    throw new ValidationError("Length and capacity must be at least 1.");
+  }
+}
+
+export let instructors: LiveTable<Instructor> = new LiveTable<Instructor>({
+  insert: (item) => {
+    requireStaff();
+
+    if (!item.name?.trim()) {
+      throw new ValidationError("Give the instructor a name.");
+    }
+
+    return instructors.insert(item);
+  },
+
+  update: (item) => {
+    requireStaff();
+
+    return instructors.update(item);
+  },
+
+  delete: (item) => {
+    requireStaff();
+
+    try {
+      instructors.delete(item);
+    } catch (err) {
+      if (err instanceof SqlError) {
+        inUse("instructor");
+      }
+
+      throw err;
+    }
+  },
+});
+
+export let classTypes: LiveTable<ClassType> = new LiveTable<ClassType>({
+  insert: (item) => {
+    requireStaff();
+    checkClassType(item);
+
+    return classTypes.insert(item);
+  },
+
+  update: (item) => {
+    requireStaff();
+    checkClassType(item);
+
+    return classTypes.update(item);
+  },
+
+  delete: (item) => {
+    requireStaff();
+
+    try {
+      classTypes.delete(item);
+    } catch (err) {
+      if (err instanceof SqlError) {
+        inUse("class");
+      }
+
+      throw err;
+    }
+  },
+});
+
+interface CatalogUI {
+  editing: string;
+  error: string;
+}
+
+function blankInstructor(): Instructor {
+  return { id: "", name: "", specialty: "", bio: "", createdAt: new Date() };
+}
+
+function blankClassType(): ClassType {
+  return { id: "", name: "", kind: "yoga", description: "", durationMinutes: 60, capacity: 12, createdAt: new Date() };
+}
+
+function byName<T extends { name: string }>(rows: LiveView<T>): T[] {
+  return rows.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function onEditClick(ui: CatalogUI, draft: object, row: object) {
+  Object.assign(draft, row);
+  ui.editing = (row as { id: string }).id;
+  ui.error = "";
+}
+
+function onInstructorSave(ui: CatalogUI, view: LiveView<Instructor>, draft: Instructor) {
+  ui.error = "";
+
+  try {
+    if (draft.id) {
+      view.update({ ...draft });
+    } else {
+      let { id, ...fields } = draft;
+      view.insert({ ...fields, createdAt: new Date() });
+    }
+
+    Object.assign(draft, blankInstructor());
+    ui.editing = "";
+  } catch (err: any) {
+    ui.error = err.message;
+  }
+}
+
+function onClassTypeSave(ui: CatalogUI, view: LiveView<ClassType>, draft: ClassType) {
+  ui.error = "";
+
+  try {
+    let row = { ...draft, durationMinutes: Number(draft.durationMinutes), capacity: Number(draft.capacity) };
+
+    if (draft.id) {
+      view.update(row);
+    } else {
+      let { id, ...fields } = row;
+      view.insert({ ...fields, createdAt: new Date() });
+    }
+
+    Object.assign(draft, blankClassType());
+    ui.editing = "";
+  } catch (err: any) {
+    ui.error = err.message;
+  }
+}
+
+function onDeleteClick<T extends { id: string }>(ui: CatalogUI, view: LiveView<T>, row: T) {
+  ui.error = "";
+
+  try {
+    view.delete(row);
+  } catch (err: any) {
+    ui.error = err.message;
+  }
+}
+
+function onCancelEdit(ui: CatalogUI, iDraft: Instructor, tDraft: ClassType) {
+  Object.assign(iDraft, blankInstructor());
+  Object.assign(tDraft, blankClassType());
+  ui.editing = "";
+}
+
+<html lang="en" class="page-studio-catalog" (
+  instructorList: LiveView<Instructor>,
+  classTypeList: LiveView<ClassType>,
+  private ui: CatalogUI = { editing: "", error: "" },
+  private iDraft: Instructor = blankInstructor(),
+  private tDraft: ClassType = blankClassType(),
+)>
+  <head>
+    <title>Classes and instructors · PackPass</title>
+    <meta name="description" content="The classes PackPass teaches and who teaches them.">
+    <link rel="icon" type="image/svg+xml" href={favicon} />
+  </head>
+  <body>
+    <Layout active="studio">
+      <div class="page-shell is-wide stack is-lg">
+        <div class="catalog-head stack is-xs">
+          <p class="eyebrow">Studio</p>
+          <h1>Classes and instructors</h1>
+          <p>The classes you teach, their default length and capacity, and your teaching team.</p>
+        </div>
+
+        <StudioNav active="catalog" />
+
+        <div e:if={ui.error} class="callout is-danger" role="alert">{ui.error}</div>
+
+        <div class="catalog-grid">
+          <section class="card">
+            <div class="card-head">
+              <h2>Classes</h2>
+            </div>
+            <ul class="item-list">
+              <li e:for={t of byName(classTypeList)}>
+                <div class="item-top row">
+                  <div class="cluster is-sm">
+                    <h3>{t.name}</h3>
+                    <span class={["pill", t.kind === "yoga" ? "is-accent" : "is-info"]}>{t.kind === "yoga" ? "Yoga" : "Pilates"}</span>
+                  </div>
+                  <div class="row" style={{ gap: "var(--space-1)" }}>
+                    <button class="is-ghost is-sm" onclick={() => onEditClick(ui, tDraft, t)}>Edit</button>
+                    <button class="is-ghost is-sm" onclick={() => onDeleteClick(ui, classTypeList, t)}>Delete</button>
+                  </div>
+                </div>
+                <p class="item-meta">{t.durationMinutes} minutes · up to {t.capacity} people</p>
+                <p e:if={t.description} class="item-desc">{t.description}</p>
+              </li>
+            </ul>
+            <div class="card-foot" style={{ display: "block" }}>
+              <form class="item-form" onsubmit={() => onClassTypeSave(ui, classTypeList, tDraft)}>
+                <div class="field">
+                  <label for="t-name">{tDraft.id ? "Edit class" : "New class"}</label>
+                  <input id="t-name" value={tDraft.name} placeholder="Power Vinyasa" required>
+                </div>
+                <div class="field">
+                  <label for="t-kind">Type</label>
+                  <select id="t-kind" value={tDraft.kind}>
+                    <option value="yoga">Yoga</option>
+                    <option value="pilates">Pilates</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="t-length">Length (minutes)</label>
+                  <input id="t-length" type="number" min={1} value={tDraft.durationMinutes}>
+                </div>
+                <div class="field">
+                  <label for="t-capacity">Default capacity</label>
+                  <input id="t-capacity" type="number" min={1} value={tDraft.capacity}>
+                </div>
+                <div class="field is-full">
+                  <label for="t-desc">Description</label>
+                  <input id="t-desc" value={tDraft.description} placeholder="What members can expect">
+                </div>
+                <div class="form-actions row">
+                  <button e:if={tDraft.id} type="button" class="is-ghost is-sm" onclick={() => onCancelEdit(ui, iDraft, tDraft)}>Cancel</button>
+                  <button type="submit" class="is-primary is-sm">{tDraft.id ? "Save class" : "Add class"}</button>
+                </div>
+              </form>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-head">
+              <h2>Instructors</h2>
+            </div>
+            <ul class="item-list">
+              <li e:for={i of byName(instructorList)}>
+                <div class="item-top row">
+                  <h3>{i.name}</h3>
+                  <div class="row" style={{ gap: "var(--space-1)" }}>
+                    <button class="is-ghost is-sm" onclick={() => onEditClick(ui, iDraft, i)}>Edit</button>
+                    <button class="is-ghost is-sm" onclick={() => onDeleteClick(ui, instructorList, i)}>Delete</button>
+                  </div>
+                </div>
+                <p e:if={i.specialty} class="item-meta">{i.specialty}</p>
+                <p e:if={i.bio} class="item-desc">{i.bio}</p>
+              </li>
+            </ul>
+            <div class="card-foot" style={{ display: "block" }}>
+              <form class="item-form" onsubmit={() => onInstructorSave(ui, instructorList, iDraft)}>
+                <div class="field">
+                  <label for="i-name">{iDraft.id ? "Edit instructor" : "New instructor"}</label>
+                  <input id="i-name" value={iDraft.name} placeholder="Name" required>
+                </div>
+                <div class="field">
+                  <label for="i-specialty">Teaches</label>
+                  <input id="i-specialty" value={iDraft.specialty} placeholder="Yin, Restorative">
+                </div>
+                <div class="field is-full">
+                  <label for="i-bio">Bio</label>
+                  <input id="i-bio" value={iDraft.bio} placeholder="A sentence for the schedule">
+                </div>
+                <div class="form-actions row">
+                  <button e:if={iDraft.id} type="button" class="is-ghost is-sm" onclick={() => onCancelEdit(ui, iDraft, tDraft)}>Cancel</button>
+                  <button type="submit" class="is-primary is-sm">{iDraft.id ? "Save instructor" : "Add instructor"}</button>
+                </div>
+              </form>
+            </div>
+          </section>
+        </div>
+      </div>
+    </Layout>
+  </body>
+</html>

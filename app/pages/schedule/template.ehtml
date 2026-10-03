@@ -1,0 +1,247 @@
+import "./style.css";
+import { LiveView } from "@elements/app";
+import favicon from "#app/shared/assets/favicons/favicon.svg";
+import { Layout } from "#app/shared/templates/layout";
+import { ScheduleClass, MyBooking, Member } from "#app/shared/services/live";
+import { bookClass, cancelBooking } from "#app/shared/services/booking";
+import { formatTime, formatDay, formatWhen, canCancelForCredit, CANCEL_WINDOW_HOURS } from "#app/shared/studio";
+import { Kind, Day, weekDays, classesOn, spotsLeft, endsAt } from "#app/shared/schedule";
+
+interface ScheduleUI {
+  day: string;
+  kind: Kind;
+  confirming: string;
+  busy: string;
+  notice: string;
+  tone: "success" | "danger" | "info";
+}
+
+function mineFor(mine: LiveView<MyBooking>, sessionId: string): MyBooking | undefined {
+  return mine.find((b) => b.sessionId === sessionId && b.status !== "cancelled");
+}
+
+function upNext(mine: LiveView<MyBooking>): MyBooking[] {
+  let now = Date.now();
+
+  return mine
+    .filter((b) => b.status !== "cancelled" && !b.classCancelled && +b.startsAt > now)
+    .sort((a, b) => +a.startsAt - +b.startsAt)
+    .slice(0, 4);
+}
+
+function onBookClick(ui: ScheduleUI, c: ScheduleClass) {
+  ui.busy = c.id;
+
+  try {
+    let result = bookClass(c.id);
+    ui.tone = "success";
+    ui.notice = result.status === "booked"
+      ? `You're booked into ${c.className}, ${formatWhen(c.startsAt)}.`
+      : `${c.className} is full, so you're on the waitlist. We'll email you if a spot opens.`;
+  } catch (err: any) {
+    ui.tone = "danger";
+    ui.notice = err.message;
+  }
+
+  ui.busy = "";
+}
+
+function onCancelConfirm(ui: ScheduleUI, b: MyBooking) {
+  ui.busy = b.sessionId;
+
+  try {
+    let result = cancelBooking(b.id);
+    ui.tone = "info";
+    ui.notice = b.status === "waitlisted"
+      ? `You've left the waitlist for ${b.className}.`
+      : result.refunded
+        ? `Cancelled ${b.className}. Your credit is back in your account.`
+        : `Cancelled ${b.className}.`;
+  } catch (err: any) {
+    ui.tone = "danger";
+    ui.notice = err.message;
+  }
+
+  ui.confirming = "";
+  ui.busy = "";
+}
+
+function cancelNote(b: MyBooking): string {
+  if (b.status === "waitlisted") {
+    return "You'll lose your place in line.";
+  }
+
+  if (!b.usedCredit) {
+    return "Covered by your membership, so nothing to refund.";
+  }
+
+  return canCancelForCredit(b.startsAt)
+    ? "Your credit comes back to your account."
+    : `Inside ${CANCEL_WINDOW_HOURS} hours, so the credit is not returned.`;
+}
+
+<html lang="en" class="page-schedule" (
+  schedule: LiveView<ScheduleClass>,
+  mine: LiveView<MyBooking>,
+  me: LiveView<Member>,
+  now: Date,
+  private days: Day[] = weekDays(now),
+  private ui: ScheduleUI = { day: days[0].key, kind: "all" as Kind, confirming: "", busy: "", notice: "", tone: "info" as "info" },
+)>
+  <head>
+    <title>Schedule · PackPass</title>
+    <meta name="description" content="This week's yoga and Pilates classes at PackPass Studio.">
+    <link rel="icon" type="image/svg+xml" href={favicon} />
+  </head>
+  <body>
+    <Layout active="schedule">
+      <div class="page-shell schedule-grid">
+        <section class="stack is-lg">
+          <div class="schedule-head stack is-xs">
+            <h1>This week's classes</h1>
+            <p>Book with a credit or your unlimited plan. Cancel {CANCEL_WINDOW_HOURS}+ hours ahead and the credit comes back.</p>
+          </div>
+
+          <div e:if={ui.notice} class={["callout", "notice", "is-" + ui.tone]} role="status">
+            <div class="row" style={{ "justify-content": "space-between", gap: "var(--space-3)" }}>
+              <span>{ui.notice}</span>
+              <button class="is-ghost is-sm" aria-label="Dismiss" onclick={() => ui.notice = ""}>Dismiss</button>
+            </div>
+          </div>
+
+          <nav class="day-strip" aria-label="Day">
+            <button e:for={d of days}
+                    class={["day-chip", d.key === ui.day && "is-active"]}
+                    aria-pressed={d.key === ui.day}
+                    onclick={() => { ui.day = d.key; ui.confirming = ""; }}>
+              <span class="day-name">{d.name}</span>
+              <span class="day-num">{d.num}</span>
+            </button>
+          </nav>
+
+          <div class="schedule-toolbar row">
+            <h2>{days.find((d) => d.key === ui.day)?.label}</h2>
+            <select aria-label="Class type" class="is-sm" value={ui.kind}>
+              <option value="all">All classes</option>
+              <option value="yoga">Yoga</option>
+              <option value="pilates">Pilates</option>
+            </select>
+          </div>
+
+          <ul class="class-list">
+            <li e:for={c of classesOn(schedule, ui.day, ui.kind)}
+                class={["card", "class-row", +c.startsAt <= Date.now() && "is-past", mineFor(mine, c.id) && "is-mine"]}>
+              <div class="class-time">
+                <span class="class-start">{formatTime(c.startsAt)}</span>
+                <span class="class-length">{c.durationMinutes} min</span>
+              </div>
+
+              <div class="class-info">
+                <div class="class-name cluster">
+                  <h3>{c.className}</h3>
+                  <span class={["pill", c.kind === "yoga" ? "is-accent" : "is-info"]}>{c.kind === "yoga" ? "Yoga" : "Pilates"}</span>
+                </div>
+                <p class="class-meta">{c.instructorName} · {c.room} · until {formatTime(endsAt(c))}</p>
+
+                <div e:if={!c.cancelledAt} class="spots">
+                  <span e:if={c.capacity <= 16} class="spots-bar" aria-hidden="true">
+                    <span e:for={i of Array.from({ length: c.capacity }, (_, n) => ({ id: String(n) }))}
+                          class={[Number(i.id) >= c.booked && "is-open"]}></span>
+                  </span>
+                  <span e:if={spotsLeft(c) === 0} class="spots-text is-full">
+                    Full{c.waitlisted > 0 ? ` · ${c.waitlisted} on waitlist` : ""}
+                  </span>
+                  <span e:elseif={spotsLeft(c) <= 2} class="spots-text is-low">{spotsLeft(c)} of {c.capacity} spots left</span>
+                  <span e:else class="spots-text">{spotsLeft(c)} of {c.capacity} spots left</span>
+                </div>
+              </div>
+
+              <div class="class-action">
+                <span e:if={c.cancelledAt} class="pill is-danger">Cancelled by the studio</span>
+
+                <div e:elseif={mineFor(mine, c.id) && ui.confirming === c.id} class="stack is-xs" style={{ "align-items": "flex-end" }}>
+                  <span class="note">{cancelNote(mineFor(mine, c.id)!)}</span>
+                  <div class="confirm-row row">
+                    <button class="is-ghost is-sm" onclick={() => ui.confirming = ""}>Keep it</button>
+                    <button class="is-danger is-sm"
+                            disabled={ui.busy === c.id}
+                            onclick={() => onCancelConfirm(ui, mineFor(mine, c.id)!)}>
+                      {mineFor(mine, c.id)!.status === "waitlisted" ? "Leave waitlist" : "Cancel class"}
+                    </button>
+                  </div>
+                </div>
+
+                <div e:elseif={mineFor(mine, c.id)?.status === "booked"} class="stack is-xs" style={{ "align-items": "flex-end" }}>
+                  <span class="status">{mineFor(mine, c.id)!.checkedInAt ? "Checked in" : "You're booked"}</span>
+                  <button e:if={+c.startsAt > Date.now()} class="is-ghost is-sm" onclick={() => ui.confirming = c.id}>Cancel</button>
+                </div>
+
+                <div e:elseif={mineFor(mine, c.id)?.status === "waitlisted"} class="stack is-xs" style={{ "align-items": "flex-end" }}>
+                  <span class="status">Waitlist #{mineFor(mine, c.id)!.waitlistPosition}</span>
+                  <button class="is-ghost is-sm" onclick={() => ui.confirming = c.id}>Leave waitlist</button>
+                </div>
+
+                <span e:elseif={+c.startsAt <= Date.now()} class="note">{+endsAt(c) <= Date.now() ? "Finished" : "In progress"}</span>
+
+                <button e:elseif={spotsLeft(c) === 0}
+                        class="is-sm"
+                        disabled={ui.busy === c.id}
+                        onclick={() => onBookClick(ui, c)}>
+                  Join waitlist
+                </button>
+
+                <button e:else
+                        class="is-primary is-sm"
+                        disabled={ui.busy === c.id}
+                        onclick={() => onBookClick(ui, c)}>
+                  Book
+                </button>
+              </div>
+            </li>
+          </ul>
+
+          <div e:if={classesOn(schedule, ui.day, ui.kind).length === 0} class="card empty-day">
+            No {ui.kind === "all" ? "" : ui.kind + " "}classes on this day. Try another day.
+          </div>
+        </section>
+
+        <aside class="schedule-side stack">
+          <div class="card">
+            <div class="card-body stack is-sm">
+              <p class="eyebrow">Your plan</p>
+              <div e:if={me.at(0)?.membershipStatus === "active" || me.at(0)?.membershipStatus === "trialing" || me.at(0)?.membershipStatus === "past_due"} class="stack is-xs">
+                <span class="plan-number">Unlimited</span>
+                <p class="plan-label">
+                  {me.at(0)!.cancelAtPeriodEnd ? "Ends" : "Renews"} {me.at(0)!.membershipEnds ? formatDay(me.at(0)!.membershipEnds!) : "monthly"}
+                  {me.at(0)!.credits > 0 ? ` · plus ${me.at(0)!.credits} pack credits` : ""}
+                </p>
+              </div>
+              <div e:else class="stack is-xs">
+                <span class="plan-number">{me.at(0)?.credits ?? 0}</span>
+                <p class="plan-label">{me.at(0)?.credits === 1 ? "class credit left" : "class credits left"}</p>
+              </div>
+              <a class="button is-sm" href="/account#buy">Buy classes</a>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <h2>Up next</h2>
+            </div>
+            <div class="card-body">
+              <ul e:if={upNext(mine).length > 0} class="up-next">
+                <li e:for={b of upNext(mine)}>
+                  <strong>{b.className}</strong>
+                  <span class="when">
+                    {formatWhen(b.startsAt)}{b.status === "waitlisted" ? ` · waitlist #${b.waitlistPosition}` : ""}
+                  </span>
+                </li>
+              </ul>
+              <p e:else class="plan-label">Nothing booked yet. Pick a class to get started.</p>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </Layout>
+  </body>
+</html>

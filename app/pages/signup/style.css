@@ -1,0 +1,17 @@
+@import "#app/shared/styles/page.css";
+
+.signup-wrap {
+  max-width: 28rem;
+  margin-inline: auto;
+}
+
+.signup-wrap h1 {
+  margin: 0;
+}
+
+.signup-alt {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-soft);
+  text-align: center;
+}

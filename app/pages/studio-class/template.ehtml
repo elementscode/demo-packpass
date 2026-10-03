@@ -1,0 +1,181 @@
+import "./style.css";
+import { LiveView } from "@elements/app";
+import favicon from "#app/shared/assets/favicons/favicon.svg";
+import { Layout } from "#app/shared/templates/layout";
+import { StudioNav } from "#app/shared/templates/studio-nav";
+import { ScheduleClass, RosterEntry } from "#app/shared/services/live";
+import { checkIn, removeFromClass } from "#app/shared/services/booking";
+import { formatDay, formatTime, formatWhen } from "#app/shared/studio";
+import { endsAt, spotsLeft } from "#app/shared/schedule";
+
+interface RosterUI {
+  removing: string;
+  busy: string;
+  notice: string;
+  error: string;
+}
+
+export function booked(roster: LiveView<RosterEntry>): RosterEntry[] {
+  return roster.filter((r) => r.status === "booked").sort((a, b) => a.memberName.localeCompare(b.memberName));
+}
+
+export function waiting(roster: LiveView<RosterEntry>): RosterEntry[] {
+  return roster
+    .filter((r) => r.status === "waitlisted")
+    .sort((a, b) => +(a.waitlistedAt ?? 0) - +(b.waitlistedAt ?? 0) || a.id.localeCompare(b.id));
+}
+
+function cancelled(roster: LiveView<RosterEntry>): RosterEntry[] {
+  return roster.filter((r) => r.status === "cancelled").sort((a, b) => +(b.cancelledAt ?? 0) - +(a.cancelledAt ?? 0));
+}
+
+function planLabel(r: RosterEntry): string {
+  if (r.unlimited) {
+    return "Unlimited";
+  }
+
+  return `${r.credits} ${r.credits === 1 ? "credit" : "credits"} left`;
+}
+
+function onCheckClick(ui: RosterUI, r: RosterEntry) {
+  ui.busy = r.id;
+  ui.error = "";
+
+  try {
+    checkIn(r.id, !r.checkedInAt);
+  } catch (err: any) {
+    ui.error = err.message;
+  }
+
+  ui.busy = "";
+}
+
+function onRemoveClick(ui: RosterUI, r: RosterEntry, refund: boolean) {
+  ui.busy = r.id;
+  ui.error = "";
+
+  try {
+    let result = removeFromClass(r.id, refund);
+    ui.notice = r.status === "waitlisted"
+      ? `Removed ${r.memberName} from the waitlist.`
+      : `Removed ${r.memberName}${result.refunded ? " and returned their credit" : ""}. The next member on the waitlist, if any, was booked.`;
+  } catch (err: any) {
+    ui.error = err.message;
+  }
+
+  ui.removing = "";
+  ui.busy = "";
+}
+
+<html lang="en" class="page-studio-class" (
+  classes: LiveView<ScheduleClass>,
+  roster: LiveView<RosterEntry>,
+  sessionId: string,
+  private ui: RosterUI = { removing: "", busy: "", notice: "", error: "" },
+)>
+  <head>
+    <title>Roster · PackPass</title>
+    <meta name="description" content="Class roster and check-in.">
+    <link rel="icon" type="image/svg+xml" href={favicon} />
+  </head>
+  <body>
+    <Layout active="studio">
+      <div class="page-shell is-wide stack is-lg">
+        <StudioNav active="schedule" />
+
+        <div e:if={classes.get(sessionId)} class="stack is-lg">
+          <div class="class-head row">
+            <div class="stack is-xs">
+              <a class="back link-muted" href="/studio">← Back to the schedule</a>
+              <h1>{classes.get(sessionId)!.className}</h1>
+              <p>
+                {formatDay(classes.get(sessionId)!.startsAt)}, {formatTime(classes.get(sessionId)!.startsAt)} to {formatTime(endsAt(classes.get(sessionId)!))}
+                · {classes.get(sessionId)!.instructorName} · {classes.get(sessionId)!.room}
+              </p>
+            </div>
+            <div class="class-stats cluster">
+              <span e:if={classes.get(sessionId)!.cancelledAt} class="pill is-danger">Cancelled</span>
+              <span class="pill">{classes.get(sessionId)!.booked} / {classes.get(sessionId)!.capacity} booked</span>
+              <span class={["pill", spotsLeft(classes.get(sessionId)!) === 0 ? "is-warning" : "is-success"]}>
+                {spotsLeft(classes.get(sessionId)!) === 0 ? "Full" : `${spotsLeft(classes.get(sessionId)!)} open`}
+              </span>
+              <span class="pill is-success"><span class="pill-dot"></span>{booked(roster).filter((r) => r.checkedInAt).length} checked in</span>
+            </div>
+          </div>
+
+          <div e:if={ui.notice} class="callout is-success" role="status">{ui.notice}</div>
+          <div e:if={ui.error} class="callout is-danger" role="alert">{ui.error}</div>
+
+          <div class="roster-grid">
+            <section class="card">
+              <div class="card-head">
+                <h2>Roster</h2>
+              </div>
+              <ul e:if={booked(roster).length > 0} class="roster">
+                <li e:for={r of booked(roster)} class={[r.checkedInAt && "is-here"]}>
+                  <button class={["check", r.checkedInAt && "is-on"]}
+                          aria-label={r.checkedInAt ? `Undo check-in for ${r.memberName}` : `Check in ${r.memberName}`}
+                          aria-pressed={!!r.checkedInAt}
+                          disabled={ui.busy === r.id}
+                          onclick={() => onCheckClick(ui, r)}>
+                    <svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true">
+                      <path d="M4 10.5l4 4 8-9" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </button>
+                  <div class="who">
+                    <span class="name">{r.memberName}</span>
+                    <span class="sub">{r.checkedInAt ? `Checked in ${formatTime(r.checkedInAt)}` : r.memberEmail} · {planLabel(r)}</span>
+                  </div>
+                  <div e:if={ui.removing === r.id} class="end row">
+                    <button class="is-ghost is-sm" onclick={() => ui.removing = ""}>Keep</button>
+                    <button class="is-sm" disabled={ui.busy === r.id} onclick={() => onRemoveClick(ui, r, false)}>Remove</button>
+                    <button class="is-danger is-sm" disabled={ui.busy === r.id} onclick={() => onRemoveClick(ui, r, true)}>Remove + refund</button>
+                  </div>
+                  <div e:else class="end row">
+                    <button class="is-ghost is-sm" onclick={() => ui.removing = r.id}>Remove</button>
+                  </div>
+                </li>
+              </ul>
+              <p e:else class="empty">Nobody is booked yet.</p>
+            </section>
+
+            <div class="stack">
+              <section class="card">
+                <div class="card-head">
+                  <h2>Waitlist</h2>
+                </div>
+                <ul e:if={waiting(roster).length > 0} class="roster">
+                  <li e:for={r of waiting(roster)}>
+                    <span class="place">{waiting(roster).indexOf(r) + 1}</span>
+                    <div class="who">
+                      <span class="name">{r.memberName}</span>
+                      <span class="sub">Joined {r.waitlistedAt ? formatWhen(r.waitlistedAt) : ""} · {planLabel(r)}</span>
+                    </div>
+                    <button class="is-ghost is-sm" disabled={ui.busy === r.id} onclick={() => onRemoveClick(ui, r, false)}>Remove</button>
+                  </li>
+                </ul>
+                <p e:else class="empty">No one is waiting. When the class fills, members can join here and are booked in order as spots open.</p>
+              </section>
+
+              <section e:if={cancelled(roster).length > 0} class="card">
+                <div class="card-head">
+                  <h2>Cancelled</h2>
+                </div>
+                <ul class="roster">
+                  <li e:for={r of cancelled(roster)}>
+                    <div class="who">
+                      <span class="name">{r.memberName}</span>
+                      <span class="sub">{r.cancelledAt ? `Cancelled ${formatWhen(r.cancelledAt)}` : "Cancelled"}</span>
+                    </div>
+                  </li>
+                </ul>
+              </section>
+            </div>
+          </div>
+        </div>
+
+        <div e:else class="callout is-warning">This class is no longer on the schedule. <a href="/studio">Back to the schedule</a></div>
+      </div>
+    </Layout>
+  </body>
+</html>

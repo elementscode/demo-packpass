@@ -1,0 +1,210 @@
+@import "#app/shared/styles/page.css";
+
+.studio-head h1 {
+  margin: 0;
+}
+
+.studio-head p {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+.today-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.today-stats .card-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.stat-value {
+  font-size: var(--text-3xl);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-none);
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-label {
+  font-size: var(--text-sm);
+  color: var(--ink-soft);
+}
+
+.studio-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20rem;
+  gap: var(--space-8);
+  align-items: start;
+}
+
+.day-strip {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.day-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-0-5);
+  height: auto;
+  padding: var(--space-2) var(--space-1);
+  line-height: var(--leading-snug);
+}
+
+.day-chip .day-name {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wider);
+  color: var(--ink-dim);
+}
+
+.day-chip .day-num {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+}
+
+.day-chip.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-deep);
+}
+
+.day-chip.is-active .day-name {
+  color: var(--accent-deep);
+}
+
+.session-table {
+  width: 100%;
+}
+
+.session-table td,
+.session-table th {
+  vertical-align: middle;
+}
+
+.session-table .time {
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.session-table .sub {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+
+.session-table .num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.session-table .actions {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.session-table tr.is-cancelled td {
+  color: var(--ink-dim);
+}
+
+.fill {
+  display: block;
+  width: 5rem;
+  height: 0.375rem;
+  margin-top: var(--space-1);
+  border-radius: var(--radius-full);
+  background: var(--bg-muted);
+  overflow: hidden;
+}
+
+.fill span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
+.fill.is-full span {
+  background: var(--warning);
+}
+
+.edit-row td {
+  background: var(--bg-soft);
+}
+
+.edit-form {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) 6rem minmax(0, 1.4fr) auto;
+  gap: var(--space-3);
+  align-items: end;
+}
+
+.edit-form .row {
+  gap: var(--space-2);
+}
+
+.empty-day {
+  padding: var(--space-8);
+  text-align: center;
+  color: var(--ink-soft);
+}
+
+@media (max-width: 64rem) {
+  .studio-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 40rem) {
+  .today-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .day-strip {
+    gap: var(--space-1);
+  }
+
+  .session-table .hide-sm {
+    display: none;
+  }
+
+  .edit-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+aside .field {
+  min-width: 0;
+}
+
+aside .field input {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Scrolls sideways on a phone instead of clipping the actions, and contains
+   the absolutely positioned sr-only header so it cannot widen the page. */
+.table-wrap {
+  position: relative;
+  overflow-x: auto;
+}
+
+@media (max-width: 40rem) {
+  .session-table .time .sub {
+    display: none;
+  }
+
+  .fill {
+    width: 3rem;
+  }
+
+  .day-chip .day-name {
+    letter-spacing: var(--tracking-normal);
+  }
+}

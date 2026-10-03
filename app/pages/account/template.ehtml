@@ -1,0 +1,301 @@
+import "./style.css";
+import { LiveView, redirect } from "@elements/app";
+import favicon from "#app/shared/assets/favicons/favicon.svg";
+import { Layout } from "#app/shared/templates/layout";
+import { MyBooking, Member } from "#app/shared/services/live";
+import { cancelBooking } from "#app/shared/services/booking";
+import { buyPack, startMembership, cancelMembership, resumeMembership } from "#app/shared/services/billing";
+import { PACKS, UNLIMITED, money, formatDay, formatWhen, canCancelForCredit, findPack } from "#app/shared/studio";
+
+export interface PaymentRow {
+  id: string;
+  product: string;
+  credits: number;
+  amountTotal: number;
+  createdAt: Date;
+}
+
+interface AccountUI {
+  busy: string;
+  error: string;
+  notice: string;
+  confirming: string;
+}
+
+export function isUnlimited(m: Member | undefined): boolean {
+  return !!m && (m.membershipStatus === "active" || m.membershipStatus === "trialing" || m.membershipStatus === "past_due");
+}
+
+export function paidMessage(paid: string): string {
+  if (paid === "unlimited") {
+    return "Welcome to unlimited. Every class on the schedule is yours to book.";
+  }
+
+  let pack = findPack(paid);
+
+  if (pack) {
+    return `Payment received. ${pack.credits} class credits were added to your account.`;
+  }
+
+  return paid === "pending" ? "Your payment is still processing. Credits appear here as soon as Stripe confirms it." : "";
+}
+
+function upcoming(mine: LiveView<MyBooking>): MyBooking[] {
+  let now = Date.now();
+
+  return mine
+    .filter((b) => b.status !== "cancelled" && +b.startsAt > now)
+    .sort((a, b) => +a.startsAt - +b.startsAt);
+}
+
+function history(mine: LiveView<MyBooking>): MyBooking[] {
+  let now = Date.now();
+
+  return mine
+    .filter((b) => b.status === "cancelled" || +b.startsAt <= now)
+    .sort((a, b) => +b.startsAt - +a.startsAt)
+    .slice(0, 12);
+}
+
+async function onBuyClick(ui: AccountUI, packId: string) {
+  ui.busy = packId;
+  ui.error = "";
+
+  try {
+    redirect(packId === "unlimited" ? await startMembership() : await buyPack(packId));
+  } catch (err: any) {
+    ui.error = err.message;
+    ui.busy = "";
+  }
+}
+
+async function onMembershipClick(ui: AccountUI, cancel: boolean) {
+  ui.busy = "membership";
+  ui.error = "";
+
+  try {
+    if (cancel) {
+      await cancelMembership();
+      ui.notice = "Your membership won't renew. You keep unlimited classes until the end of this period.";
+    } else {
+      await resumeMembership();
+      ui.notice = "Your membership will renew as usual.";
+    }
+  } catch (err: any) {
+    ui.error = err.message;
+  }
+
+  ui.busy = "";
+}
+
+function onCancelClick(ui: AccountUI, b: MyBooking) {
+  ui.busy = b.id;
+  ui.error = "";
+
+  try {
+    let result = cancelBooking(b.id);
+    ui.notice = b.status === "waitlisted"
+      ? `You've left the waitlist for ${b.className}.`
+      : `Cancelled ${b.className}.${result.refunded ? " Your credit is back." : ""}`;
+  } catch (err: any) {
+    ui.error = err.message;
+  }
+
+  ui.confirming = "";
+  ui.busy = "";
+}
+
+function bookingNote(b: MyBooking): string {
+  if (b.classCancelled) {
+    return "Cancelled by the studio";
+  }
+
+  if (b.status === "cancelled") {
+    return "You cancelled";
+  }
+
+  if (b.status === "waitlisted") {
+    return `Waitlist #${b.waitlistPosition}`;
+  }
+
+  return b.checkedInAt ? "Attended" : +b.startsAt <= Date.now() ? "Missed" : "Booked";
+}
+
+<html lang="en" class="page-account" (
+  me: LiveView<Member>,
+  mine: LiveView<MyBooking>,
+  payments: PaymentRow[],
+  paid: string,
+  welcome: boolean,
+  private ui: AccountUI = { busy: "", error: "", notice: paidMessage(paid), confirming: "" },
+)>
+  <head>
+    <title>Your account · PackPass</title>
+    <meta name="description" content="Your PackPass credits, membership and bookings.">
+    <link rel="icon" type="image/svg+xml" href={favicon} />
+  </head>
+  <body>
+    <Layout active="account">
+      <div class="page-shell account-shell stack is-xl">
+        <div class="account-head stack is-xs">
+          <p class="eyebrow">Your account</p>
+          <h1>{me.at(0)?.name}</h1>
+          <p>{me.at(0)?.email}</p>
+        </div>
+
+        <div e:if={welcome} class="callout is-info">
+          <div class="callout-title">Welcome to PackPass</div>
+          <div class="callout-body">Pick a class pack or go unlimited below, then book your first class from the schedule.</div>
+        </div>
+
+        <div e:if={ui.notice} class="callout is-success" role="status">{ui.notice}</div>
+        <div e:if={ui.error} class="callout is-danger" role="alert">{ui.error}</div>
+
+        <section class="card">
+          <div class="card-head">
+            <h2>Your plan</h2>
+          </div>
+          <div class="card-body stack">
+            <div class="plan-summary">
+              <div class="stat">
+                <span class="stat-value">{isUnlimited(me.at(0)) ? "Unlimited" : "Class pack"}</span>
+                <span class="stat-label">
+                  {isUnlimited(me.at(0))
+                    ? `${me.at(0)!.cancelAtPeriodEnd ? "Ends" : "Renews"} ${me.at(0)!.membershipEnds ? formatDay(me.at(0)!.membershipEnds!) : "monthly"}`
+                    : "Pay per class with credits"}
+                </span>
+              </div>
+              <div class="stat">
+                <span class="stat-value">{me.at(0)?.credits ?? 0}</span>
+                <span class="stat-label">{me.at(0)?.credits === 1 ? "class credit" : "class credits"}</span>
+              </div>
+              <div class="stat">
+                <span class="stat-value">{me.at(0)?.attended ?? 0}</span>
+                <span class="stat-label">classes attended</span>
+              </div>
+            </div>
+
+            <div e:if={isUnlimited(me.at(0)) && me.at(0)!.stripeManaged} class="row" style={{ gap: "var(--space-3)", "flex-wrap": "wrap" }}>
+              <button e:if={!me.at(0)!.cancelAtPeriodEnd}
+                      class="is-sm"
+                      disabled={ui.busy === "membership"}
+                      onclick={() => onMembershipClick(ui, true)}>
+                Cancel membership
+              </button>
+              <button e:else
+                      class="is-primary is-sm"
+                      disabled={ui.busy === "membership"}
+                      onclick={() => onMembershipClick(ui, false)}>
+                Keep my membership
+              </button>
+              <span class="muted">Billed {money(UNLIMITED.priceCents)} a month by card.</span>
+            </div>
+            <p e:elseif={isUnlimited(me.at(0))} class="muted">Your membership is managed by the studio. Ask at the front desk to change it.</p>
+          </div>
+        </section>
+
+        <section id="buy" class="stack">
+          <div class="stack is-xs">
+            <h2>Buy classes</h2>
+            <p class="muted">Credits never expire and work for any yoga or Pilates class. Pay securely by card with Stripe.</p>
+          </div>
+
+          <div class="offers">
+            <div e:for={pack of PACKS} class="card offer">
+              <div class="card-body stack is-sm">
+                <h3>{pack.name}</h3>
+                <div class="price">{money(pack.priceCents)}</div>
+                <p>{money(pack.priceCents / pack.credits)} a class. {pack.credits} credits, added the moment you pay.</p>
+              </div>
+              <div class="card-foot">
+                <button disabled={ui.busy !== ""} onclick={() => onBuyClick(ui, pack.id)}>
+                  {ui.busy === pack.id ? "Opening checkout…" : `Buy ${pack.credits} classes`}
+                </button>
+              </div>
+            </div>
+
+            <div class="card offer is-featured">
+              <div class="card-body stack is-sm">
+                <h3>{UNLIMITED.name}</h3>
+                <div class="row price-row">
+                  <div class="price">{money(UNLIMITED.priceCents)}<small> / month</small></div>
+                  <span class="pill is-accent">Best value</span>
+                </div>
+                <p>Every class, every week, no credits needed. Cancel any time.</p>
+              </div>
+              <div class="card-foot">
+                <button class="is-primary"
+                        disabled={ui.busy !== "" || isUnlimited(me.at(0))}
+                        onclick={() => onBuyClick(ui, "unlimited")}>
+                  {isUnlimited(me.at(0)) ? "You're unlimited" : ui.busy === "unlimited" ? "Opening checkout…" : "Go unlimited"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-head">
+            <h2>Upcoming classes</h2>
+          </div>
+          <div class="card-body">
+            <ul e:if={upcoming(mine).length > 0} class="booking-list">
+              <li e:for={b of upcoming(mine)}>
+                <div class="what">
+                  <strong>{b.className}</strong>
+                  <span class="when">{formatWhen(b.startsAt)} · {b.instructorName} · {b.room}</span>
+                </div>
+                <div e:if={ui.confirming === b.id} class="actions row">
+                  <span class="muted">
+                    {b.status === "waitlisted" ? "Leave the waitlist?" : !b.usedCredit ? "Cancel this class?" : canCancelForCredit(b.startsAt) ? "Cancel? Your credit comes back." : "Cancel? It's inside 12 hours, so no credit back."}
+                  </span>
+                  <button class="is-ghost is-sm" onclick={() => ui.confirming = ""}>Keep</button>
+                  <button class="is-danger is-sm" disabled={ui.busy === b.id} onclick={() => onCancelClick(ui, b)}>Yes, cancel</button>
+                </div>
+                <div e:else class="actions row">
+                  <span class={["pill", b.status === "waitlisted" ? "is-warning" : "is-success"]}>{bookingNote(b)}</span>
+                  <button class="is-ghost is-sm" onclick={() => ui.confirming = b.id}>{b.status === "waitlisted" ? "Leave" : "Cancel"}</button>
+                </div>
+              </li>
+            </ul>
+            <p e:else class="muted">No upcoming classes. <a class="link-action" href="/">Find one on the schedule</a>.</p>
+          </div>
+        </section>
+
+        <section e:if={history(mine).length > 0} class="card">
+          <div class="card-head">
+            <h2>Recent activity</h2>
+          </div>
+          <div class="card-body">
+            <ul class="booking-list">
+              <li e:for={b of history(mine)}>
+                <div class="what">
+                  <strong>{b.className}</strong>
+                  <span class="when">{formatWhen(b.startsAt)} · {b.instructorName}</span>
+                </div>
+                <span class={["pill", b.checkedInAt && "is-success"]}>{bookingNote(b)}</span>
+              </li>
+            </ul>
+          </div>
+        </section>
+
+        <section e:if={payments.length > 0} class="card">
+          <div class="card-head">
+            <h2>Purchases</h2>
+          </div>
+          <div class="card-body">
+            <ul class="booking-list">
+              <li e:for={p of payments}>
+                <div class="what">
+                  <strong>{findPack(p.product)?.name ?? p.product}</strong>
+                  <span class="when">{formatDay(p.createdAt)} · {p.credits} credits</span>
+                </div>
+                <span>{money(p.amountTotal)}</span>
+              </li>
+            </ul>
+          </div>
+        </section>
+      </div>
+    </Layout>
+  </body>
+</html>

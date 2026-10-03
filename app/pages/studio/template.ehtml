@@ -1,0 +1,281 @@
+import "./style.css";
+import { LiveView } from "@elements/app";
+import favicon from "#app/shared/assets/favicons/favicon.svg";
+import { Layout } from "#app/shared/templates/layout";
+import { StudioNav } from "#app/shared/templates/studio-nav";
+import { ScheduleClass } from "#app/shared/services/live";
+import { addClass, updateClass, cancelClass, NewClass, ClassChanges } from "#app/shared/services/studio";
+import { formatTime } from "#app/shared/studio";
+import { Day, weekDays, classesOn, spotsLeft, endsAt } from "#app/shared/schedule";
+
+export interface Option {
+  id: string;
+  name: string;
+  capacity: number;
+}
+
+interface StudioUI {
+  day: string;
+  editing: string;
+  confirmCancel: string;
+  busy: string;
+  notice: string;
+  error: string;
+}
+
+export function todayTotals(schedule: LiveView<ScheduleClass>, day: string) {
+  let list = classesOn(schedule, day).filter((c) => !c.cancelledAt);
+
+  return {
+    classes: list.length,
+    booked: list.reduce((n, c) => n + c.booked, 0),
+    waitlisted: list.reduce((n, c) => n + c.waitlisted, 0),
+    open: list.filter((c) => +c.startsAt > Date.now()).reduce((n, c) => n + spotsLeft(c), 0),
+  };
+}
+
+function fillPercent(c: ScheduleClass): string {
+  return `${Math.min(100, Math.round((c.booked / c.capacity) * 100))}%`;
+}
+
+function onEditClick(ui: StudioUI, edit: ClassChanges, c: ScheduleClass) {
+  edit.instructorId = c.instructorId;
+  edit.capacity = c.capacity;
+  edit.room = c.room;
+  ui.editing = c.id;
+  ui.error = "";
+}
+
+function onEditSubmit(ui: StudioUI, edit: ClassChanges, c: ScheduleClass) {
+  ui.busy = c.id;
+  ui.error = "";
+
+  try {
+    let promoted = updateClass(c.id, { instructorId: edit.instructorId, capacity: Number(edit.capacity), room: edit.room });
+    ui.notice = promoted > 0
+      ? `Saved ${c.className}. ${promoted} ${promoted === 1 ? "member was" : "members were"} booked from the waitlist and emailed.`
+      : `Saved ${c.className}.`;
+    ui.editing = "";
+  } catch (err: any) {
+    ui.error = err.message;
+  }
+
+  ui.busy = "";
+}
+
+function onCancelClassClick(ui: StudioUI, c: ScheduleClass) {
+  ui.busy = c.id;
+
+  try {
+    let n = cancelClass(c.id);
+    ui.notice = `Cancelled ${c.className} at ${formatTime(c.startsAt)}. ${n} ${n === 1 ? "booking was" : "bookings were"} released and credits returned.`;
+  } catch (err: any) {
+    ui.error = err.message;
+  }
+
+  ui.confirmCancel = "";
+  ui.busy = "";
+}
+
+function onClassTypeChange(draft: NewClass, types: Option[]) {
+  let t = types.find((t) => t.id === draft.classTypeId);
+
+  if (t) {
+    draft.capacity = t.capacity;
+  }
+}
+
+function onAddSubmit(ui: StudioUI, draft: NewClass) {
+  ui.busy = "add";
+  ui.error = "";
+
+  try {
+    addClass({ ...draft, capacity: Number(draft.capacity) });
+    ui.day = draft.date;
+    ui.notice = "Class added to the schedule.";
+    draft.time = "";
+  } catch (err: any) {
+    ui.error = err.message;
+  }
+
+  ui.busy = "";
+}
+
+<html lang="en" class="page-studio" (
+  schedule: LiveView<ScheduleClass>,
+  classTypes: Option[],
+  instructors: Option[],
+  now: Date,
+  private days: Day[] = weekDays(now),
+  private ui: StudioUI = { day: days[0].key, editing: "", confirmCancel: "", busy: "", notice: "", error: "" },
+  private edit: ClassChanges = { instructorId: "", capacity: 0, room: "" },
+  private draft: NewClass = {
+    classTypeId: classTypes[0]?.id ?? "",
+    instructorId: instructors[0]?.id ?? "",
+    date: days[0].key,
+    time: "",
+    capacity: classTypes[0]?.capacity ?? 12,
+    room: "Studio A",
+  },
+)>
+  <head>
+    <title>Studio · PackPass</title>
+    <meta name="description" content="Manage the PackPass schedule.">
+    <link rel="icon" type="image/svg+xml" href={favicon} />
+  </head>
+  <body>
+    <Layout active="studio">
+      <div class="page-shell is-wide stack is-lg">
+        <div class="studio-head stack is-xs">
+          <p class="eyebrow">Studio</p>
+          <h1>Schedule</h1>
+          <p>Bookings, waitlists and check-ins update here as they happen.</p>
+        </div>
+
+        <StudioNav active="schedule" />
+
+        <div class="today-stats">
+          <div class="card"><div class="card-body"><span class="stat-value">{todayTotals(schedule, days[0].key).classes}</span><span class="stat-label">classes today</span></div></div>
+          <div class="card"><div class="card-body"><span class="stat-value">{todayTotals(schedule, days[0].key).booked}</span><span class="stat-label">spots booked today</span></div></div>
+          <div class="card"><div class="card-body"><span class="stat-value">{todayTotals(schedule, days[0].key).waitlisted}</span><span class="stat-label">on waitlists today</span></div></div>
+          <div class="card"><div class="card-body"><span class="stat-value">{todayTotals(schedule, days[0].key).open}</span><span class="stat-label">open spots left today</span></div></div>
+        </div>
+
+        <div e:if={ui.notice} class="callout is-success" role="status">
+          <div class="row" style={{ "justify-content": "space-between", gap: "var(--space-3)" }}>
+            <span>{ui.notice}</span>
+            <button class="is-ghost is-sm" onclick={() => ui.notice = ""}>Dismiss</button>
+          </div>
+        </div>
+        <div e:if={ui.error} class="callout is-danger" role="alert">{ui.error}</div>
+
+        <div class="studio-grid">
+          <section class="stack">
+            <nav class="day-strip" aria-label="Day">
+              <button e:for={d of days}
+                      class={["day-chip", d.key === ui.day && "is-active"]}
+                      aria-pressed={d.key === ui.day}
+                      onclick={() => { ui.day = d.key; ui.editing = ""; }}>
+                <span class="day-name">{d.name}</span>
+                <span class="day-num">{d.num}</span>
+              </button>
+            </nav>
+
+            <div class="card table-wrap">
+              <table e:if={classesOn(schedule, ui.day).length > 0} class="session-table">
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Class</th>
+                    <th class="hide-sm">Room</th>
+                    <th>Booked</th>
+                    <th class="hide-sm">Waitlist</th>
+                    <th class="actions"><span class="sr-only">Actions</span></th>
+                  </tr>
+                </thead>
+                <tbody e:for={c of classesOn(schedule, ui.day)}>
+                  <tr class={[c.cancelledAt && "is-cancelled"]}>
+                    <td class="time">{formatTime(c.startsAt)}<span class="sub">to {formatTime(endsAt(c))}</span></td>
+                    <td>
+                      <a class="link-action" href={`/studio/classes/${c.id}`}>{c.className}</a>
+                      <span class="sub">{c.instructorName}</span>
+                    </td>
+                    <td class="hide-sm">{c.room}</td>
+                    <td class="num">
+                      <span e:if={c.cancelledAt} class="pill is-danger">Cancelled</span>
+                      <span e:else>
+                        {c.booked} / {c.capacity}
+                        <span class={["fill", spotsLeft(c) === 0 && "is-full"]}><span style={{ width: fillPercent(c) }}></span></span>
+                      </span>
+                    </td>
+                    <td class="num hide-sm">
+                      <span e:if={c.waitlisted > 0} class="pill is-warning">{c.waitlisted} waiting</span>
+                      <span e:else class="sub">None</span>
+                    </td>
+                    <td class="actions">
+                      <div e:if={ui.confirmCancel === c.id} class="row" style={{ gap: "var(--space-2)", "justify-content": "flex-end" }}>
+                        <button class="is-ghost is-sm" onclick={() => ui.confirmCancel = ""}>Keep</button>
+                        <button class="is-danger is-sm" disabled={ui.busy === c.id} onclick={() => onCancelClassClick(ui, c)}>Cancel class</button>
+                      </div>
+                      <div e:elseif={!c.cancelledAt} class="row" style={{ gap: "var(--space-2)", "justify-content": "flex-end" }}>
+                        <a class="button is-sm" href={`/studio/classes/${c.id}`}>Roster</a>
+                        <button class="is-ghost is-sm" onclick={() => onEditClick(ui, edit, c)}>Edit</button>
+                        <button e:if={+c.startsAt > Date.now()} class="is-ghost is-sm" onclick={() => ui.confirmCancel = c.id}>Cancel</button>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr e:if={ui.editing === c.id} class="edit-row">
+                    <td colspan={6}>
+                      <form class="edit-form" onsubmit={() => onEditSubmit(ui, edit, c)}>
+                        <div class="field">
+                          <label for={`instructor-${c.id}`}>Instructor</label>
+                          <select id={`instructor-${c.id}`} value={edit.instructorId}>
+                            <option e:for={i of instructors} value={i.id}>{i.name}</option>
+                          </select>
+                        </div>
+                        <div class="field">
+                          <label for={`capacity-${c.id}`}>Capacity</label>
+                          <input id={`capacity-${c.id}`} type="number" min={1} value={edit.capacity}>
+                        </div>
+                        <div class="field">
+                          <label for={`room-${c.id}`}>Room</label>
+                          <input id={`room-${c.id}`} value={edit.room}>
+                        </div>
+                        <div class="row">
+                          <button type="button" class="is-ghost is-sm" onclick={() => ui.editing = ""}>Close</button>
+                          <button type="submit" class="is-primary is-sm" disabled={ui.busy === c.id}>Save</button>
+                        </div>
+                      </form>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <div e:else class="empty-day">No classes on this day yet. Add one on the right.</div>
+            </div>
+          </section>
+
+          <aside class="card">
+            <div class="card-head">
+              <h2>Add a class</h2>
+            </div>
+            <form class="card-body stack" onsubmit={() => onAddSubmit(ui, draft)}>
+              <div class="field">
+                <label for="new-type">Class</label>
+                <select id="new-type" value={draft.classTypeId} onchange={() => onClassTypeChange(draft, classTypes)}>
+                  <option e:for={t of classTypes} value={t.id}>{t.name}</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="new-instructor">Instructor</label>
+                <select id="new-instructor" value={draft.instructorId}>
+                  <option e:for={i of instructors} value={i.id}>{i.name}</option>
+                </select>
+              </div>
+              <div class="row" style={{ gap: "var(--space-3)" }}>
+                <div class="field" style={{ flex: "1" }}>
+                  <label for="new-date">Date</label>
+                  <input id="new-date" type="date" value={draft.date} required>
+                </div>
+                <div class="field" style={{ flex: "1" }}>
+                  <label for="new-time">Start</label>
+                  <input id="new-time" type="time" step={300} value={draft.time} required>
+                </div>
+              </div>
+              <div class="row" style={{ gap: "var(--space-3)" }}>
+                <div class="field" style={{ flex: "1" }}>
+                  <label for="new-capacity">Capacity</label>
+                  <input id="new-capacity" type="number" min={1} value={draft.capacity} required>
+                </div>
+                <div class="field" style={{ flex: "1.4" }}>
+                  <label for="new-room">Room</label>
+                  <input id="new-room" value={draft.room}>
+                </div>
+              </div>
+              <button type="submit" class="is-primary" disabled={ui.busy === "add"}>Add to schedule</button>
+            </form>
+          </aside>
+        </div>
+      </div>
+    </Layout>
+  </body>
+</html>
