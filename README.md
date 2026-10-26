@@ -1,44 +1,12 @@
-![PackPass, a class booking app for a yoga and Pilates studio built with Elements: the weekly schedule with spots left on each class, a full Reformer class with a waitlist, and the member's credits and upcoming classes.](https://elements.dev/demos/01a0f465-5b24-7e17-a800-9cc003b6eb36/poster?v=5b36ed54779e)
+![Class packs, bookings and waitlists, built by Claude Code on Elements: the weekly schedule with spots left on each class, a full Reformer class with a waitlist, and the member's credits and upcoming classes.](https://elements.dev/demos/01a0f465-5b24-7e17-a800-9cc003b6eb36/poster?v=5b36ed54779e)
 
-# PackPass
+# Class packs, bookings and waitlists, built by Claude Code on Elements
 
-> A demo app built with [Elements](https://elements.dev).
+> PackPass is a full-stack app built with Claude Code on Elements.
 
 Class packs and memberships by card, a weekly schedule with spots left, waitlists that book the next member, and live rosters.
 
-**Demo:** [PackPass](https://elements.dev/demos/01a0f465-5b24-7e17-a800-9cc003b6eb36)
-
-## Agent specs
-
-- **Agent:** Claude Code, Opus 5.5 Medium
-- **Time:** 21 min
-- **Cost:** $9.70 at API rates, September 2026
-
-## Get started
-
-```bash
-elements create packpass -scaffold=elementscode/demo-packpass
-```
-
-## Demo accounts
-
-The seed creates the studio staff login, three instructors, five class types,
-a week of classes starting today, and eight members on class packs and
-unlimited memberships, with bookings across the week. Tomorrow's 9:30 Reformer
-Pilates class is full with two members on the waitlist. Every account's
-password is `packpass`, and the sign-in page lists them.
-
-| Email                 | Role   | Plan                    |
-| --------------------- | ------ | ----------------------- |
-| staff@packpass.test   | staff  |                         |
-| maya@packpass.test    | member | Unlimited monthly       |
-| hannah@packpass.test  | member | Unlimited monthly       |
-| sam@packpass.test     | member | Unlimited, cancelling   |
-| jordan@packpass.test  | member | 7 credits               |
-| lena@packpass.test    | member | 8 credits               |
-| priya@packpass.test   | member | 2 credits               |
-| diego@packpass.test   | member | 1 credit, on a waitlist |
-| theo@packpass.test    | member | 0 credits               |
+[Run this app on your machine](https://elements.dev/demos/01a0f465-5b24-7e17-a800-9cc003b6eb36). Use this demo as inspiration, or as the starting point for your own app. Your agent creates a new app with this one as the scaffold, and you prompt it to add whatever features you want.
 
 ## Payments
 
@@ -63,8 +31,6 @@ to `.elements/logs/job.log` in development.
 
 PackPass needed class credits and a monthly membership paid by card, a schedule that counts spots as members book, waitlists that fill themselves, reminder emails and live rosters for the front desk. Each of those is a part of Elements, so the agent spent its 21 minutes on the studio itself.
 
-### What Elements gave the app
-
 - **Live schedule and rosters.** The schedule, each member's bookings, the class rosters and the member list are LiveTables. Spots left, the front desk's roster with its check-in boxes and each member's credits update the moment anyone books or cancels.
 
 - **Waitlists that book the next member.** Booking locks the class first, so the last spot goes to exactly one member and a full class puts the next one on the waitlist. When someone cancels, the first member on the waitlist who can still pay gets the place and an email saying so.
@@ -77,16 +43,6 @@ PackPass needed class credits and a monthly membership paid by card, a schedule 
 
 - **Data and roles from SQL.** Migrations define the studio and seed a staff login, three instructors, a week of classes, eight members and a full Reformer class with a waitlist. Sessions and one staff guard keep the studio pages with the staff.
 
-### What the project server gave the agent
+## Why Elements
 
-The project server runs alongside the agent and answers as soon as a file is saved: it type-checks the templates, TypeScript and SQL, applies migrations and reruns the tests, so every question came back right away and the agent kept building.
-
-### What shipped
-
-The app type-checks with zero errors and all 46 tests pass. Every page works on desktop and phone. A real sandbox payment went through Stripe end to end.
-
-**Demo:** [PackPass](https://elements.dev/demos/01a0f465-5b24-7e17-a800-9cc003b6eb36)
-
-## License
-
-MIT. See [LICENSE](LICENSE).
+Elements is an integrated full-stack app framework and a project server. The project server checks the agent's work as it builds: it type-checks the server and browser code, analyzes the program, applies migrations and runs the tests, then reports the results to the agent. A security mistake, such as calling a server-only function from the browser, is a compile error. The agent reads the report and fixes its own mistakes before it tells you a feature is done. The same checks run on every feature you ask for next.
